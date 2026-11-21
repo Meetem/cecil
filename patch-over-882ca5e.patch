@@ -1,0 +1,81 @@
+diff --git a/Mono.Cecil/AssemblyReader.cs b/Mono.Cecil/AssemblyReader.cs
+index a3422860..4ee027d7 100644
+--- a/Mono.Cecil/AssemblyReader.cs
++++ b/Mono.Cecil/AssemblyReader.cs
+@@ -1845,6 +1845,12 @@ namespace Mono.Cecil {
+ 			reader.ReadMethodSignature (method);
+ 		}
+ 
++		void ReadCallSiteSignature (uint signature, CallSite call_site)
++		{
++			var reader = ReadSignature (signature);
++			reader.ReadCallSite (call_site);
++		}
++
+ 		public PInvokeInfo ReadPInvokeInfo (MethodDefinition method)
+ 		{
+ 			InitializePInvokes ();
+@@ -2122,7 +2128,7 @@ namespace Mono.Cecil {
+ 
+ 			var call_site = new CallSite ();
+ 
+-			ReadMethodSignature (signature, call_site);
++			ReadCallSiteSignature (signature, call_site);
+ 
+ 			call_site.MetadataToken = token;
+ 
+@@ -3451,6 +3457,54 @@ namespace Mono.Cecil {
+ 			}
+ 		}
+ 
++		public void ReadCallSite (CallSite call_site)
++		{
++			var calling_convention = ReadByte ();
++
++			const byte has_this = 0x20;
++			const byte explicit_this = 0x40;
++
++			if ((calling_convention & has_this) != 0) {
++				call_site.HasThis = true;
++				calling_convention = (byte) (calling_convention & ~has_this);
++			}
++
++			if ((calling_convention & explicit_this) != 0) {
++				call_site.ExplicitThis = true;
++				calling_convention = (byte) (calling_convention & ~explicit_this);
++			}
++
++			call_site.CallingConvention = (MethodCallingConvention) calling_convention;
++
++			//var generic_context = call_site as MethodReference;
++			//if (generic_context != null && !generic_context.DeclaringType.IsArray)
++			//	reader.context = generic_context;
++
++			if ((calling_convention & 0x10) != 0) {
++				var arity = ReadCompressedUInt32 ();
++
++				//if (generic_context != null && !generic_context.IsDefinition)
++				//	CheckGenericContext (generic_context, (int) arity -1 );
++			}
++
++			var param_count = ReadCompressedUInt32 ();
++
++			call_site.MethodReturnType.ReturnType = ReadTypeSignature ();
++
++			if (param_count == 0)
++				return;
++
++			Collection<ParameterDefinition> parameters;
++			//var method_ref = call_site as MethodReference;
++			//if (method_ref != null)
++			//	parameters = method_ref.parameters = new ParameterDefinitionCollection (call_site, (int) param_count);
++			//else
++				parameters = call_site.Parameters;
++
++			for (int i = 0; i < param_count; i++)
++				parameters.Add (new ParameterDefinition (ReadTypeSignature ()));
++		}
++		
+ 		public void ReadMethodSignature (IMethodSignature method)
+ 		{
+ 			var calling_convention = ReadByte ();
